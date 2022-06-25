@@ -1,0 +1,24 @@
+run                400 # run for t=20
+Generated 0 of 1 mixed pair_coeff terms from geometric mixing rule
+Neighbor list info ...
+  update every 5 steps, delay 0 steps, check yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 4.5
+  ghost atom cutoff = 4.5
+  binsize = 2.25, bins = 112 4 4
+  2 neighbor lists, perpetual/occasional/extra = 2 0 0
+  (1) pair sph/rhosum, perpetual
+      attributes: full, newton on
+      pair build: full/bin/atomonly
+      stencil: full/bin/3d
+      bin: standard
+  (2) pair sph/idealgas, perpetual, half/full from (1)
+      attributes: half, newton on
+      pair build: halffull/newton
+      stencil: none
+      bin: none
+Per MPI rank memory allocation (min/avg/max) = 64.45 | 64.45 | 64.45 Mbytes
+   Step          c_ke          c_esph         v_etot    
+         0   0              22160          22160        
+ERROR: Domain too large for neighbor bins (C:\Users\egora\Desktop\project\lammps_rel\lammps\src\nbin_standard.cpp:133)
+Last command: run                400 # run for t=20
