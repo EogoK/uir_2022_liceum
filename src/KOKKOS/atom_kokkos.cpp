@@ -86,6 +86,14 @@ AtomKokkos::~AtomKokkos()
   memoryKK->destroy_kokkos(k_fm, fm);
   memoryKK->destroy_kokkos(k_fm_long, fm_long);
 
+  // SPH package
+  memoryKK->destroy_kokkos(k_rho, rho);
+  memoryKK->destroy_kokkos(k_drho, drho);
+  memoryKK->destroy_kokkos(k_esph, esph);
+  memoryKK->destroy_kokkos(k_desph, desph);
+  memoryKK->destroy_kokkos(k_cv, cv);
+  memoryKK->destroy_kokkos(k_vest, vest);
+
   // DPD-REACT package
   memoryKK->destroy_kokkos(k_uCond, uCond);
   memoryKK->destroy_kokkos(k_uMech, uMech);

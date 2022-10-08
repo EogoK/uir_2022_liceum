@@ -61,6 +61,16 @@ class AtomKokkos : public Atom {
   DAT::tdual_f_array k_fm;
   DAT::tdual_f_array k_fm_long;
 
+  //SPH package
+  DAT::tdual_float_1d k_rho;
+  DAT::tdual_float_1d k_drho;
+  DAT::tdual_float_1d k_esph;
+  DAT::tdual_float_1d k_desph;
+  DAT::tdual_float_1d k_cv;
+  DAT::tdual_float_2d k_vest;
+
+  
+
 // DPD-REACT package
   DAT::tdual_efloat_1d k_uCond, k_uMech, k_uChem, k_uCG, k_uCGnew,
                        k_rho,k_dpdTheta,k_duChem;
