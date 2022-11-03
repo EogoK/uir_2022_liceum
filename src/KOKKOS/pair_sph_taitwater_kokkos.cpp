@@ -16,7 +16,7 @@
    Contributing authors: Stefan Paquay (Eindhoven University of Technology)
 ------------------------------------------------------------------------- */
 
-#include "pair_sph_kokkos.h"
+#include "pair_sph_rhosum_kokkos.h"
 
 #include "atom_kokkos.h"
 #include "atom_masks.h"
@@ -43,7 +43,7 @@ using namespace MathConst;
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-PairSPHKokkos<DeviceType>::PairSPHKokkos(LAMMPS *lmp) : PairSPH(lmp)
+PairSPHTaitwaterKokkos<DeviceType>::PairSPHTaitwaterKokkos(LAMMPS *lmp) : PairSPH(lmp)
 {
   respa_enable = 0;
 
@@ -57,7 +57,7 @@ PairSPHKokkos<DeviceType>::PairSPHKokkos(LAMMPS *lmp) : PairSPH(lmp)
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-PairSPHKokkos<DeviceType>::~PairSPHKokkos()
+PairSPHTaitwaterKokkos<DeviceType>::~PairSPHTaitwaterKokkos()
 {
   if (copymode) return;
 
@@ -71,7 +71,7 @@ PairSPHKokkos<DeviceType>::~PairSPHKokkos()
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
+void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 {
   eflag = eflag_in;
   vflag = vflag_in;
@@ -120,9 +120,16 @@ void PairSPHKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
   special_lj[2] = force->special_lj[2];
   special_lj[3] = force->special_lj[3];
 
-  // loop over neighbors of my atoms
+  inum = list->inum;
+  const int ignum = inum + list->gnum;
+  NeighListKokkos<DeviceType>* k_list = static_cast<NeighListKokkos<DeviceType>*>(list);
+  d_ilist = k_list->d_ilist; //non-declared
+  d_numneigh = k_list->d_numneigh;
+  d_neighbors = k_list->d_neighbors;
+  EV_FLOAT ev;
+  d_params = k_params.template view<DeviceType>();
 
-  EV_FLOAT ev = pair_compute<PairSPHKokkos<DeviceType>,void >(this,(NeighListKokkos<DeviceType>*)list);
+  Kokkos::parallel_reduce(Kokkos::RangePolicy<DeviceType, TagPairKokkosTaitwater<HALF,1> >(0,inum),*this,ev);
 
   if (eflag_global) eng_vdwl += ev.evdwl;
   if (vflag_global) {
@@ -136,66 +143,66 @@ void PairSPHKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 
   if (vflag_fdotr) pair_virial_fdotr_compute(this);
 
-  if (eflag_atom) {
-    k_eatom.template modify<DeviceType>();
-    k_eatom.template sync<LMPHostType>();
-  }
+  // if (eflag_atom) {
+  //   k_eatom.template modify<DeviceType>();
+  //   k_eatom.template sync<LMPHostType>();
+  // }
 
-  if (vflag_atom) {
-    k_vatom.template modify<DeviceType>();
-    k_vatom.template sync<LMPHostType>();
-  }
+  // if (vflag_atom) {
+  //   k_vatom.template modify<DeviceType>();
+  //   k_vatom.template sync<LMPHostType>();
+  // } //??????????????????????
 }
 
-template<class DeviceType>
-template<bool STACKPARAMS, class Specialisation>
-KOKKOS_INLINE_FUNCTION
-F_FLOAT PairSPHKokkos<DeviceType>::
-compute_fpair(const F_FLOAT& rsq, const int& i, const int&j, const int& itype, const int& jtype) const {
-  (void) i;
-  (void) j;
-  const F_FLOAT rr = sqrt(rsq);
-  const F_FLOAT r0 = STACKPARAMS ? m_params[itype][jtype].r0 : params(itype,jtype).r0;
-  const F_FLOAT d0 = STACKPARAMS ? m_params[itype][jtype].d0 : params(itype,jtype).d0;
-  const F_FLOAT aa = STACKPARAMS ? m_params[itype][jtype].alpha : params(itype,jtype).alpha;
-  const F_FLOAT dr = rr - r0;
+// template<class DeviceType>
+// template<bool STACKPARAMS, class Specialisation>
+// KOKKOS_INLINE_FUNCTION
+// F_FLOAT PairSPHTaitwaterKokkos<DeviceType>::
+// compute_fpair(const F_FLOAT& rsq, const int& i, const int&j, const int& itype, const int& jtype) const {
+//   (void) i;
+//   (void) j;
+//   const F_FLOAT rr = sqrt(rsq);
+//   const F_FLOAT r0 = STACKPARAMS ? m_params[itype][jtype].r0 : params(itype,jtype).r0;
+//   const F_FLOAT d0 = STACKPARAMS ? m_params[itype][jtype].d0 : params(itype,jtype).d0;
+//   const F_FLOAT aa = STACKPARAMS ? m_params[itype][jtype].alpha : params(itype,jtype).alpha;
+//   const F_FLOAT dr = rr - r0;
 
-  // U  =  d0 * [ exp( -2*a*(x-r0)) - 2*exp(-a*(x-r0)) ]
-  // f  = -2*a*d0*[ -exp( -2*a*(x-r0) ) + exp( -a*(x-r0) ) ] * grad(r)
-  //    = +2*a*d0*[  exp( -2*a*(x-r0) ) - exp( -a*(x-r0) ) ] * grad(r)
-  const F_FLOAT dexp    = exp( -aa*dr );
-  const F_FLOAT forcelj = 2*aa*d0*dexp*(dexp-1.0);
+//   // U  =  d0 * [ exp( -2*a*(x-r0)) - 2*exp(-a*(x-r0)) ]
+//   // f  = -2*a*d0*[ -exp( -2*a*(x-r0) ) + exp( -a*(x-r0) ) ] * grad(r)
+//   //    = +2*a*d0*[  exp( -2*a*(x-r0) ) - exp( -a*(x-r0) ) ] * grad(r)
+//   const F_FLOAT dexp    = exp( -aa*dr );
+//   const F_FLOAT forcelj = 2*aa*d0*dexp*(dexp-1.0);
 
-  return forcelj / rr;
-}
+//   return forcelj / rr;
+// }
 
-template<class DeviceType>
-template<bool STACKPARAMS, class Specialisation>
-KOKKOS_INLINE_FUNCTION
-F_FLOAT PairSPHKokkos<DeviceType>::
-compute_evdwl(const F_FLOAT& rsq, const int& i, const int&j, const int& itype, const int& jtype) const {
-  (void) i;
-  (void) j;
-  const F_FLOAT rr = sqrt(rsq);
-  const F_FLOAT r0 = STACKPARAMS ? m_params[itype][jtype].r0 : params(itype,jtype).r0;
-  const F_FLOAT d0 = STACKPARAMS ? m_params[itype][jtype].d0 : params(itype,jtype).d0;
-  const F_FLOAT aa = STACKPARAMS ? m_params[itype][jtype].alpha : params(itype,jtype).alpha;
-  const F_FLOAT dr = rr - r0;
+// template<class DeviceType>
+// template<bool STACKPARAMS, class Specialisation>
+// KOKKOS_INLINE_FUNCTION
+// F_FLOAT PairSPHTaitwaterKokkos<DeviceType>::
+// compute_evdwl(const F_FLOAT& rsq, const int& i, const int&j, const int& itype, const int& jtype) const {
+//   (void) i;
+//   (void) j;
+//   const F_FLOAT rr = sqrt(rsq);
+//   const F_FLOAT r0 = STACKPARAMS ? m_params[itype][jtype].r0 : params(itype,jtype).r0;
+//   const F_FLOAT d0 = STACKPARAMS ? m_params[itype][jtype].d0 : params(itype,jtype).d0;
+//   const F_FLOAT aa = STACKPARAMS ? m_params[itype][jtype].alpha : params(itype,jtype).alpha;
+//   const F_FLOAT dr = rr - r0;
 
-  // U  =  d0 * [ exp( -2*a*(x-r0)) - 2*exp(-a*(x-r0)) ]
-  // f  = -2*a*d0*[ -exp( -2*a*(x-r0) ) + exp( -a*(x-r0) ) ] * grad(r)
-  //    = +2*a*d0*[  exp( -2*a*(x-r0) ) - exp( -a*(x-r0) ) ] * grad(r)
-  const F_FLOAT dexp    = exp( -aa*dr );
+//   // U  =  d0 * [ exp( -2*a*(x-r0)) - 2*exp(-a*(x-r0)) ]
+//   // f  = -2*a*d0*[ -exp( -2*a*(x-r0) ) + exp( -a*(x-r0) ) ] * grad(r)
+//   //    = +2*a*d0*[  exp( -2*a*(x-r0) ) - exp( -a*(x-r0) ) ] * grad(r)
+//   const F_FLOAT dexp    = exp( -aa*dr );
 
-  return d0 * dexp * ( dexp - 2.0 );
-}
+//   return d0 * dexp * ( dexp - 2.0 );
+// }
 
 /* ----------------------------------------------------------------------
    allocate all arrays
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHKokkos<DeviceType>::allocate()
+void PairSPHTaitwaterKokkos<DeviceType>::allocate()
 {
   PairSPH::allocate();
 
@@ -212,7 +219,7 @@ void PairSPHKokkos<DeviceType>::allocate()
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHKokkos<DeviceType>::settings(int narg, char **arg)
+void PairSPHTaitwaterKokkos<DeviceType>::settings(int narg, char **arg)
 {
   if (narg > 2) error->all(FLERR,"Illegal pair_style command");
 
@@ -224,7 +231,7 @@ void PairSPHKokkos<DeviceType>::settings(int narg, char **arg)
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHKokkos<DeviceType>::init_style()
+void PairSPHTaitwaterKokkos<DeviceType>::init_style()
 {
   PairSPH::init_style();
 
@@ -248,28 +255,27 @@ void PairSPHKokkos<DeviceType>::init_style()
   if (neighflag == FULL) request->enable_full();
 }
 
+/*----------------------------------------------------------------------
+   coef init ploho
+-------------------------------------------------------------------------*/
+
 /* ----------------------------------------------------------------------
    init for one type pair i,j and corresponding j,i
 ------------------------------------------------------------------------- */
 // Rewrite this.
 template<class DeviceType>
-double PairSPHKokkos<DeviceType>::init_one(int i, int j)
+double PairSPHTaitwaterKokkos<DeviceType>::init_one(int i, int j)
 {
   double cutone = PairSPH::init_one(i,j);
 
-  k_params.h_view(i,j).d0     = d0[i][j];
-  k_params.h_view(i,j).alpha  = alpha[i][j];
-  k_params.h_view(i,j).r0     = r0[i][j];
-  k_params.h_view(i,j).offset = offset[i][j];
-  k_params.h_view(i,j).cutsq  = cutone*cutone;
+  k_params.h_view(i,j).cut     = cut[i][j];
+  k_params.h_view(i,j).viscosity  = viscosity[i][j];//maybe create copy of k_params to d_params and get valus
   k_params.h_view(j,i)        = k_params.h_view(i,j);
 
   if (i<MAX_TYPES_STACKPARAMS+1 && j<MAX_TYPES_STACKPARAMS+1) {
     m_params[i][j] = m_params[j][i] = k_params.h_view(i,j);
-    m_cutsq[j][i] = m_cutsq[i][j] = cutone*cutone;
   }
 
-  k_cutsq.h_view(i,j) = k_cutsq.h_view(j,i) = cutone*cutone;
   k_cutsq.template modify<LMPHostType>();
   k_params.template modify<LMPHostType>();
 
@@ -277,11 +283,109 @@ double PairSPHKokkos<DeviceType>::init_one(int i, int j)
 }
 
 
+template<class DeviceType>
+template<int NEIGHFLAG, int EVFLAG>
+KOKKOS_INLINE_FUNCTION
+void operator(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>,const int& ii, EV_FLOAT& ev) const{
+  i = ilist[ii];
+  const X_FLOAT xtmp = x(i, 0);
+  const X_FLOAT ytmp = x(i, 1);
+  const X_FLOAT ztmp = x(i, 2);
+  const X_FLOAT vxtmp = v(i, 0);
+  const X_FLOAT vytmp = v(i, 1);
+  const X_FLOAT vztmp = v(i, 2);
+  const int itype = type[i];
+  jlist = d_neighbors[i]; //pleas find!
+  jnum = d_numneigh[i];
+
+  imass = mass[itype];
+
+  tmp = rho[i] / rho0[itype];
+  fi = tmp * tmp * tmp;
+  fi = B[itype] * (fi * fi * tmp - 1.0) / (rho[i] * rho[i]);
+
+    for (jj = 0; jj < jnum; jj++) {
+      j = jlist[jj];
+      j &= NEIGHMASK;
+
+      const F_FLOAT delx = xtmp - x(j, 0);
+      const F_FLOAT dely = ytmp - x(j, 1);
+      const F_FLOAT delz = ztmp - x(j, 2);
+      rsq = delx * delx + dely * dely + delz * delz;
+      jtype = type[j];
+      jmass = mass[jtype];
+
+      if (rsq < d_cutsq(itype, jtype)) {
+
+        F_FLOAT h = cut(itype, jtype);
+        F_FLOAT ih = 1.0 / h;
+        F_FLOAT ihsq = ih * ih;
+
+        F_FLOAT wfd = h - sqr t(rsq);
+        if (domain->dimension == 3) {
+          // Lucy Kernel, 3d
+          // Note that wfd, the derivative of the weight function with respect to r,
+          // is lacking a factor of r.
+          // The missing factor of r is recovered by
+          // (1) using delV . delX instead of delV . (delX/r) and
+          // (2) using f[i][0] += delx * fpair instead of f[i][0] += (delx/r) * fpair
+          wfd = -25.066903536973515383e0 * wfd * wfd * ihsq * ihsq * ihsq * ih;
+        } else {
+          // Lucy Kernel, 2d
+          wfd = -19.098593171027440292e0 * wfd * wfd * ihsq * ihsq * ihsq;
+        }
+
+        // compute pressure  of atom j with Tait EOS
+        F_FLOAT tmp = rho[j] / rho0[jtype];
+        F_FLOAT fj = tmp * tmp * tmp;
+        F_FLOAT fj = B[jtype] * (fj * fj * tmp - 1.0) / (rho[j] * rho[j]);
+
+        // dot product of velocity delta and distance vector
+        F_FLOAT delVdotDelR = delx * (vxtmp - v(j, 0)) + dely * (vytmp - v(j, 1))
+            + delz * (vztmp - v(j, 2));
+
+        // artificial viscosity (Monaghan 1992)
+        if (delVdotDelR < 0.) {
+          F_FLOAT mu = h * delVdotDelR / (rsq + 0.01 * h * h);
+          F_FLOAT fvisc = -viscosity(itype, jtype) * (soundspeed[itype]
+              + soundspeed[jtype]) * mu / (rho[i] + rho[j]);
+        } else {
+          fvisc = 0.;
+        }
+
+        // total pair force & thermal energy increment
+        F_FLOAT fpair = -imass * jmass * (fi + fj + fvisc) * wfd;
+        F_FLOAT deltaE = -0.5 * fpair * delVdotDelR;
+
+        f(i, 0) += delx * fpair;
+        f(i, 1) += dely * fpair;
+        f(i, 2) += delz * fpair;
+
+        // and change in density
+        drho[i] += jmass * delVdotDelR * wfd;
+
+        // change in thermal energy
+        desph[i] += deltaE;
+
+        if (newton_pair || j < nlocal) {
+          f(i, 0) -= delx * fpair;
+          f(i, 1) -= dely * fpair;
+          f(i, 2) -= delz * fpair;
+          desph[j] += deltaE;
+          drho[j] += imass * delVdotDelR * wfd;
+        }
+
+        if (evflag)
+          PairComputeFunctor<Meso, HALF, STACKPARAMS, void>ev_tally(ev, i, j, 0.0, fpair, delx, dely, delz);//maybe not work
+      }
+    }
+}
+
 
 namespace LAMMPS_NS {
-template class PairSPHKokkos<LMPDeviceType>;
+template class PairSPHTaitwaterKokkos<LMPDeviceType>;
 #ifdef LMP_KOKKOS_GPU
-template class PairSPHKokkos<LMPHostType>;
+template class PairSPHTaitwaterKokkos<LMPHostType>;
 #endif
 }
 

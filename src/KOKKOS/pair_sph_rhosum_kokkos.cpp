@@ -16,7 +16,7 @@
    Contributing authors: Stefan Paquay (Eindhoven University of Technology)
 ------------------------------------------------------------------------- */
 
-#include "pair_sph_kokkos.h"
+#include "pair_sph_rhosum.h"
 #include "pair_sph_rhosum_kokkos.h"
 #include "atom_kokkos.h"
 #include "atom_masks.h"
@@ -43,7 +43,7 @@ using namespace MathConst;
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-PairSPHKokkos<DeviceType>::PairSPHKokkos(LAMMPS *lmp) : PairSPH(lmp)
+PairSPHRhosumKokkos<DeviceType>::PairSPHRhosumKokkos(LAMMPS *lmp) : PairSPH(lmp)
 {
   respa_enable = 0;
 
@@ -57,7 +57,7 @@ PairSPHKokkos<DeviceType>::PairSPHKokkos(LAMMPS *lmp) : PairSPH(lmp)
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-PairSPHKokkos<DeviceType>::~PairSPHKokkos()
+PairSPHRhosumKokkos<DeviceType>::~PairSPHRhosumKokkos()
 {
   if (copymode) return;
 
@@ -71,7 +71,7 @@ PairSPHKokkos<DeviceType>::~PairSPHKokkos()
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
+void PairSPHRhosumKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 {
   eflag = eflag_in;
   vflag = vflag_in;
@@ -118,11 +118,12 @@ void PairSPHKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
   d_ilist = k_list->d_ilist; //non-declared
   d_numneigh = k_list->d_numneigh;
   d_neighbors = k_list->d_neighbors;
+  
   EV_FLOAT ev;
   d_params = k_params.template view<DeviceType>();
-
+  //
   if(nstep != 0){
-    if (update->ntimestep % nstep) == 0){
+    if ((update->ntimestep % nstep) == 0){
           // initialize density with self-contribution,
         Kokkos::parallel_reduce(Kokkos::RangePolicy<DeviceType, TagPairSPHRhosumComputeShortNeigh<HALFTHREAD,1> >(0,inum),*this,ev);
 
@@ -131,12 +132,11 @@ void PairSPHKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 
     }
   }
-
 }
 
   template<int NEIGHFLAG, int EVFLAG>
   KOKKOS_INLINE_FUNCTION
-  void PairSPHKokkos<DeviceType>::operator()(TagPairSPHRhosumComputeShortNeigh1<NEIGHFLAG,EVFLAG>, const int& ii, EV_FLOAT& ev) const{
+  void PairSPHRhosumKokkos<DeviceType>::operator()(TagPairSPHRhosumComputeShortNeigh1<NEIGHFLAG,EVFLAG>, const int& ii, EV_FLOAT& ev) const{
         const int i = d_ilist[ii];
         const X_FLOAT xtmp = x(i,0);
         const X_FLOAT ytmp = x(i,1);
@@ -150,7 +150,7 @@ void PairSPHKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
           j &= NEIGHMASK;
 
           jtype = type[j];
-          d const X_FLOAT delx = xtmp - x(j,0);
+          const X_FLOAT delx = xtmp - x(j,0);
           const X_FLOAT dely = ytmp - x(j,1);
           const X_FLOAT delz = ztmp - x(j,2);
           const F_FLOAT rsq = delx*delx + dely*dely + delz*delz;
@@ -192,7 +192,7 @@ void PairSPHKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 
   template<int NEIGHFLAG, int EVFLAG>
   KOKKOS_INLINE_FUNCTION
-  void PairSPHKokkos<DeviceType>::operator()(TagPairSPHRhosumComputeShortNeigh<NEIGHFLAG,EVFLAG>, const int& ii, EV_FLOAT& ev) const{
+  void PairSPHRhosumKokkos<DeviceType>::operator()(TagPairSPHRhosumComputeShortNeigh<NEIGHFLAG,EVFLAG>, const int& ii, EV_FLOAT& ev) const{
         const int i = d_ilist[ii];
         const int itype = type[i];
         imass = mass[itype];
@@ -223,7 +223,7 @@ void PairSPHKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHKokkos<DeviceType>::allocate()
+void PairSPHRhosumKokkos<DeviceType>::allocate()
 {
   PairSPH::allocate();
 
@@ -240,7 +240,7 @@ void PairSPHKokkos<DeviceType>::allocate()
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHKokkos<DeviceType>::settings(int narg, char **arg)
+void PairSPHRhosumKokkos<DeviceType>::settings(int narg, char **arg)
 {
   if (narg > 2) error->all(FLERR,"Illegal pair_style command");
 
@@ -252,7 +252,7 @@ void PairSPHKokkos<DeviceType>::settings(int narg, char **arg)
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHKokkos<DeviceType>::init_style()
+void PairSPHRhosumKokkos<DeviceType>::init_style()
 {
   PairSPH::init_style();
 
@@ -281,7 +281,7 @@ void PairSPHKokkos<DeviceType>::init_style()
 ------------------------------------------------------------------------- */
 // Rewrite this.
 template<class DeviceType>
-double PairSPHKokkos<DeviceType>::init_one(int i, int j)
+double PairSPHRhosumKokkos<DeviceType>::init_one(int i, int j)
 {
   double cutone = PairSPH::init_one(i,j);
 
@@ -308,9 +308,9 @@ double PairSPHKokkos<DeviceType>::init_one(int i, int j)
 
 
 namespace LAMMPS_NS {
-template class PairSPHKokkos<LMPDeviceType>;
+template class PairSPHRhosumKokkos<LMPDeviceType>;
 #ifdef LMP_KOKKOS_GPU
-template class PairSPHKokkos<LMPHostType>;
+template class PairSPHRhosumKokkos<LMPHostType>;
 #endif
 }
 

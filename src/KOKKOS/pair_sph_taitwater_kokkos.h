@@ -83,14 +83,15 @@ class PairSPHTaitwaterKokkos : public PairSPH {
   typename ArrayTypes<DeviceType>::t_virial_array d_vatom;
   typename ArrayTypes<DeviceType>::t_tagint_1d tag;
 
-  int newton_pair;
   double special_lj[4];
 
   typename ArrayTypes<DeviceType>::tdual_ffloat_2d k_cutsq;
   typename ArrayTypes<DeviceType>::t_ffloat_2d d_cutsq;
 
-
-  int neighflag;
+  typename ArrayTypes<DeviceType>::t_neighbors_2d d_neighbors;
+  typename ArrayTypes<DeviceType>::t_int_1d_randomread d_ilist;
+  typename ArrayTypes<DeviceType>::t_int_1d_randomread d_numneigh;
+  int neighflag,newton_pair;
   int nlocal,nall,eflag,vflag;
 
   void allocate() override;

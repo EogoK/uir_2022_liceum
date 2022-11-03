@@ -13,9 +13,9 @@
 
 #ifdef PAIR_CLASS
 // clang-format off
-PairStyle(sph/kk,PairSPHKokkos<LMPDeviceType>);
-PairStyle(sph/kk/device,PairSPHKokkos<LMPDeviceType>);
-PairStyle(sph/kk/host,PairSPHKokkos<LMPHostType>);
+PairStyle(sph/kk,PairSPHRhosumKokkos<LMPDeviceType>);
+PairStyle(sph/kk/device,PairSPHRhosumKokkos<LMPDeviceType>);
+PairStyle(sph/kk/host,PairSPHRhosumKokkos<LMPHostType>);
 // clang-format on
 #else
 
@@ -45,8 +45,8 @@ class PairSPHRhosumKokkos : public PairSPH {
   enum {EnabledNeighFlags=FULL|HALFTHREAD|HALF};
   enum {COUL_FLAG=0};
   typedef DeviceType device_type;
-  PairSPHKokkos(class LAMMPS *);
-  ~PairSPHKokkos() override;
+  PairSPHRhosumKokkos(class LAMMPS *);
+  ~PairSPHRhosumKokkos() override;
 
   void compute(int, int) override;
 
@@ -66,16 +66,8 @@ class PairSPHRhosumKokkos : public PairSPH {
   KOKKOS_INLINE_FUNCTION
   void operator()(TagPairSPHRhosumComputeShortNeigh2<NEIGHFLAG,EVFLAG>, const int&, EV_FLOAT&) const;
     
-  struct params_sph{
-    KOKKOS_INLINE_FUNCTION
-    params_sph() {cutsq=0,rho0=0;soundspeed=0;B=0;viscosity=0;}
-    KOKKOS_INLINE_FUNCTION
-    params_sph(int /*i*/) {cutsq=0,rho0=0;soundspeed=0;B=0;viscosity=0;}
-    F_FLOAT cutsq,rho0,soundspeed,B,viscosity;
-  };
 
  protected:
-
   Kokkos::DualView<params_sph**,Kokkos::LayoutRight,DeviceType> k_params;
   t_param_1d d_params;
   typename Kokkos::DualView<params_sph**,Kokkos::LayoutRight,DeviceType>::t_dev_const_um params;
@@ -85,7 +77,11 @@ class PairSPHRhosumKokkos : public PairSPH {
   typename ArrayTypes<DeviceType>::t_x_array c_x;
   typename ArrayTypes<DeviceType>::t_f_array f;
   typename ArrayTypes<DeviceType>::t_int_1d_randomread type;
-  
+
+
+  typename ArrayTypes<DeviceType>::t_neighbors_2d d_neighbors;
+  typename ArrayTypes<DeviceType>::t_int_1d_randomread d_ilist;
+  typename ArrayTypes<DeviceType>::t_int_1d_randomread d_numneigh;
 
   DAT::tdual_efloat_1d k_eatom;
   DAT::tdual_virial_array k_vatom;
@@ -93,7 +89,6 @@ class PairSPHRhosumKokkos : public PairSPH {
   typename ArrayTypes<DeviceType>::t_virial_array d_vatom;
   typename ArrayTypes<DeviceType>::t_tagint_1d tag;
 
-  int newton_pair;
   double special_lj[4];
   int nstep, first;
 
@@ -101,21 +96,22 @@ class PairSPHRhosumKokkos : public PairSPH {
   typename ArrayTypes<DeviceType>::t_ffloat_2d d_cutsq;
 
 
-  int neighflag;
+  int neighflag,newton_pair;
   int nlocal,nall,eflag,vflag;
 
+  int inum;
   void allocate() override;
-  friend struct PairComputeFunctor<PairSPHKokkos,FULL,true>;
-  friend struct PairComputeFunctor<PairSPHKokkos,HALF,true>;
-  friend struct PairComputeFunctor<PairSPHKokkos,HALFTHREAD,true>;
-  friend struct PairComputeFunctor<PairSPHKokkos,FULL,false>;
-  friend struct PairComputeFunctor<PairSPHKokkos,HALF,false>;
-  friend struct PairComputeFunctor<PairSPHKokkos,HALFTHREAD,false>;
-  friend EV_FLOAT pair_compute_neighlist<PairSPHKokkos,FULL,void>(PairSPHKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute_neighlist<PairSPHKokkos,HALF,void>(PairSPHKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute_neighlist<PairSPHKokkos,HALFTHREAD,void>(PairSPHKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute<PairSPHKokkos,void>(PairSPHKokkos*,NeighListKokkos<DeviceType>*);
-  friend void pair_virial_fdotr_compute<PairSPHKokkos>(PairSPHKokkos*);
+  friend struct PairComputeFunctor<PairSPHRhosumKokkos,FULL,true>;
+  friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALF,true>;
+  friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALFTHREAD,true>;
+  friend struct PairComputeFunctor<PairSPHRhosumKokkos,FULL,false>;
+  friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALF,false>;
+  friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALFTHREAD,false>;
+  friend EV_FLOAT pair_compute_neighlist<PairSPHRhosumKokkos,FULL,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
+  friend EV_FLOAT pair_compute_neighlist<PairSPHRhosumKokkos,HALF,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
+  friend EV_FLOAT pair_compute_neighlist<PairSPHRhosumKokkos,HALFTHREAD,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
+  friend EV_FLOAT pair_compute<PairSPHRhosumKokkos,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
+  friend void pair_virial_fdotr_compute<PairSPHRhosumKokkos>(PairSPHRhosumKokkos*);
 };
 
 }
