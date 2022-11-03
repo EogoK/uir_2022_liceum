@@ -99,6 +99,7 @@ void PairMorse::compute(int eflag, int vflag)
       jtype = type[j];
 
       if (rsq < cutsq[itype][jtype]) {
+        //compute fpair
         r = sqrt(rsq);
         dr = r - r0[itype][jtype];
         dexp = exp(-alpha[itype][jtype] * dr);
@@ -112,7 +113,7 @@ void PairMorse::compute(int eflag, int vflag)
           f[j][1] -= dely*fpair;
           f[j][2] -= delz*fpair;
         }
-
+        //compute evdwl
         if (eflag) {
           evdwl = d0[itype][jtype] * (dexp*dexp - 2.0*dexp) -
             offset[itype][jtype];
