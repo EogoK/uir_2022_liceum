@@ -13,9 +13,9 @@
 
 #ifdef PAIR_CLASS
 // clang-format off
-PairStyle(sph/kk,PairSPHKokkos<LMPDeviceType>);
-PairStyle(sph/kk/device,PairSPHKokkos<LMPDeviceType>);
-PairStyle(sph/kk/host,PairSPHKokkos<LMPHostType>);
+PairStyle(sph/kk,PairSPHTaitwaterKokkos<LMPDeviceType>);
+PairStyle(sph/kk/device,PairSPHTaitwaterKokkos<LMPDeviceType>);
+PairStyle(sph/kk/host,PairSPHTaitwaterKokkos<LMPHostType>);
 // clang-format on
 #else
 
@@ -38,8 +38,8 @@ class PairSPHTaitwaterKokkos : public PairSPH {
   enum {EnabledNeighFlags=FULL|HALFTHREAD|HALF};
   enum {COUL_FLAG=0};
   typedef DeviceType device_type;
-  PairSPHKokkos(class LAMMPS *);
-  ~PairSPHKokkos() override;
+  PairSPHTaitwaterKokkos(class LAMMPS *);
+  ~PairSPHTaitwaterKokkos() override;
 
   void compute(int, int) override;
 
@@ -95,17 +95,17 @@ class PairSPHTaitwaterKokkos : public PairSPH {
   int nlocal,nall,eflag,vflag;
 
   void allocate() override;
-  friend struct PairComputeFunctor<PairSPHKokkos,FULL,true>;
-  friend struct PairComputeFunctor<PairSPHKokkos,HALF,true>;
-  friend struct PairComputeFunctor<PairSPHKokkos,HALFTHREAD,true>;
-  friend struct PairComputeFunctor<PairSPHKokkos,FULL,false>;
-  friend struct PairComputeFunctor<PairSPHKokkos,HALF,false>;
-  friend struct PairComputeFunctor<PairSPHKokkos,HALFTHREAD,false>;
-  friend EV_FLOAT pair_compute_neighlist<PairSPHKokkos,FULL,void>(PairSPHKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute_neighlist<PairSPHKokkos,HALF,void>(PairSPHKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute_neighlist<PairSPHKokkos,HALFTHREAD,void>(PairSPHKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute<PairSPHKokkos,void>(PairSPHKokkos*,NeighListKokkos<DeviceType>*);
-  friend void pair_virial_fdotr_compute<PairSPHKokkos>(PairSPHKokkos*);
+  friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,FULL,true>;
+  friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,HALF,true>;
+  friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,HALFTHREAD,true>;
+  friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,FULL,false>;
+  friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,HALF,false>;
+  friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,HALFTHREAD,false>;
+  friend EV_FLOAT pair_compute_neighlist<PairSPHTaitwaterKokkos,FULL,void>(PairSPHTaitwaterKokkos*,NeighListKokkos<DeviceType>*);
+  friend EV_FLOAT pair_compute_neighlist<PairSPHTaitwaterKokkos,HALF,void>(PairSPHTaitwaterKokkos*,NeighListKokkos<DeviceType>*);
+  friend EV_FLOAT pair_compute_neighlist<PairSPHTaitwaterKokkos,HALFTHREAD,void>(PairSPHTaitwaterKokkos*,NeighListKokkos<DeviceType>*);
+  friend EV_FLOAT pair_compute<PairSPHTaitwaterKokkos,void>(PairSPHTaitwaterKokkos*,NeighListKokkos<DeviceType>*);
+  friend void pair_virial_fdotr_compute<PairSPHTaitwaterKokkos>(PairSPHTaitwaterKokkos*);
 };
 
 }
