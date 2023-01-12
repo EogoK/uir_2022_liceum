@@ -1,18 +1,11 @@
 # Install/unInstall package files in LAMMPS
 # mode = 0/1/2 for uninstall/install/update
-
-# this is default Install.sh for all packages
 # if package has an auxiliary library or a file with a dependency,
-# then package dir has its own customized Install.sh
-
 mode=$1
-
 # enforce using portable C locale
 LC_ALL=C
 export LC_ALL
-
 # arg1 = file, arg2 = file it depends on
-
 action () {
   if (test $mode = 0) then
     rm -f ../$1
@@ -29,9 +22,7 @@ action () {
     fi
   fi
 }
-
 # all package files with no dependencies
-
 for file in *.cpp *.h; do
   test -f ${file} && action $file
 done

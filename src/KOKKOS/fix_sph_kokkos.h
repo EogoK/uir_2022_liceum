@@ -75,7 +75,7 @@ class FixSPHKokkos : public FixSPH {
 
 template <class DeviceType, int RMass>
 struct FixSPHKokkosInitialIntegrateFunctor  {
-  typedef DeviceType  device_type ;
+  typedef DeviceType device_type;
   FixSPHKokkos<DeviceType> c;
 
   FixSPHKokkosInitialIntegrateFunctor(FixSPHKokkos<DeviceType>* c_ptr):
@@ -89,7 +89,7 @@ struct FixSPHKokkosInitialIntegrateFunctor  {
 
 template <class DeviceType, int RMass>
 struct FixSPHKokkosFinalIntegrateFunctor  {
-  typedef DeviceType  device_type ;
+  typedef DeviceType device_type;
   FixSPHKokkos<DeviceType> c;
 
   FixSPHKokkosFinalIntegrateFunctor(FixSPHKokkos<DeviceType>* c_ptr):

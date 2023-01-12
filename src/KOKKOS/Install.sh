@@ -1,6 +1,5 @@
 # Install/unInstall package files in LAMMPS
 # mode = 0/1/2 for uninstall/install/update
-
 mode=$1
 
 # enforce using portable C locale
@@ -44,6 +43,13 @@ elif (test $mode = 0) then
 fi
 
 # list of files with optional dependencies
+
+action fix_sph_kokkos.cpp fix_sph.cpp
+action fix_sph_kokkos.h fix_sph.cpp
+action pair_sph_rhosum_kokkos.cpp pair_sph_rhosum.cpp
+action pair_sph_rhosum_kokkos.h pair_sph_rhosum.h
+action pair_sph_taitwater_kokkos.cpp pair_sph_taitwater.cpp
+action pair_sph_taitwater_kokkos.h pair_sph_taitwater.h
 
 action angle_charmm_kokkos.cpp angle_charmm.cpp
 action angle_charmm_kokkos.h angle_charmm.h

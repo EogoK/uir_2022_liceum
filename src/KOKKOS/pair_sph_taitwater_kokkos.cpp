@@ -16,19 +16,19 @@
    Contributing authors: Stefan Paquay (Eindhoven University of Technology)
 ------------------------------------------------------------------------- */
 
-#include "pair_sph_rhosum_kokkos.h"
+#include "pair_sph_taitwater_kokkos.h"
 
 #include "atom_kokkos.h"
 #include "atom_masks.h"
+#include "comm.h"
 #include "error.h"
 #include "force.h"
 #include "kokkos.h"
 #include "math_const.h"
 #include "memory_kokkos.h"
-#include "neigh_list.h"
+#include "neigh_list_kokkos.h"
 #include "neigh_request.h"
 #include "neighbor.h"
-#include "respa.h"
 #include "update.h"
 
 #include <cmath>
@@ -40,10 +40,13 @@ using namespace MathConst;
 #define KOKKOS_CUDA_MAX_THREADS 256
 #define KOKKOS_CUDA_MIN_BLOCKS 8
 
+#define MAXLINE 1024
+#define DELTA 4
+
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-PairSPHTaitwaterKokkos<DeviceType>::PairSPHTaitwaterKokkos(LAMMPS *lmp) : PairSPH(lmp)
+PairSPHTaitwaterKokkos<DeviceType>::PairSPHTaitwaterKokkos(LAMMPS *lmp) : PairSPHTaitwater(lmp)
 {
   respa_enable = 0;
 
@@ -127,9 +130,9 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
   d_numneigh = k_list->d_numneigh;
   d_neighbors = k_list->d_neighbors;
   EV_FLOAT ev;
-  d_params = k_params.template view<DeviceType>();
+  //d_params = k_params.template view<DeviceType>();
 
-  Kokkos::parallel_reduce(Kokkos::RangePolicy<DeviceType, TagPairKokkosTaitwater<HALF,1> >(0,inum),*this,ev);
+  Kokkos::parallel_for(Kokkos::RangePolicy<DeviceType, TagPairKokkosTaitwater<HALF,1> >(0,inum),*this);
 
   if (eflag_global) eng_vdwl += ev.evdwl;
   if (vflag_global) {
@@ -141,7 +144,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
     virial[5] += ev.v[5];
   }
 
-  if (vflag_fdotr) pair_virial_fdotr_compute(this);
+  // if (vflag_fdotr) pair_virial_fdotr_compute(this);
 
   // if (eflag_atom) {
   //   k_eatom.template modify<DeviceType>();
@@ -204,13 +207,13 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 template<class DeviceType>
 void PairSPHTaitwaterKokkos<DeviceType>::allocate()
 {
-  PairSPH::allocate();
+  PairSPHTaitwater::allocate();
 
   int n = atom->ntypes;
   memory->destroy(cutsq);
   memoryKK->create_kokkos(k_cutsq,cutsq,n+1,n+1,"pair:cutsq");
   d_cutsq = k_cutsq.template view<DeviceType>();
-  k_params = Kokkos::DualView<params_morse**,Kokkos::LayoutRight,DeviceType>("PairSPH::params",n+1,n+1);
+  k_params = Kokkos::DualView<params_sph**,Kokkos::LayoutRight,DeviceType>("PairSPHTaitwater::params",n+1,n+1);
   params = k_params.template view<DeviceType>();
 }
 
@@ -223,7 +226,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::settings(int narg, char **arg)
 {
   if (narg > 2) error->all(FLERR,"Illegal pair_style command");
 
-  PairSPH::settings(1,arg);
+  PairSPHTaitwater::settings(1,arg);
 }
 
 /* ----------------------------------------------------------------------
@@ -233,17 +236,17 @@ void PairSPHTaitwaterKokkos<DeviceType>::settings(int narg, char **arg)
 template<class DeviceType>
 void PairSPHTaitwaterKokkos<DeviceType>::init_style()
 {
-  PairSPH::init_style();
+  PairSPHTaitwater::init_style();
 
   // error if rRESPA with inner levels
 
-  if (update->whichflag == 1 && utils::strmatch(update->integrate_style,"^respa")) {
-    int respa = 0;
-    if (((Respa *) update->integrate)->level_inner >= 0) respa = 1;
-    if (((Respa *) update->integrate)->level_middle >= 0) respa = 2;
-    if (respa)
-      error->all(FLERR,"Cannot use Kokkos pair style with rRESPA inner/middle");
-  }
+  // if (update->whichflag == 1 && utils::strmatch(update->integrate_style,"^respa")) {
+  //   int respa = 0;
+  //   if (((Respa *) update->integrate)->level_inner >= 0) respa = 1;
+  //   if (((Respa *) update->integrate)->level_middle >= 0) respa = 2;
+  //   if (respa)
+  //     error->all(FLERR,"Cannot use Kokkos pair style with rRESPA inner/middle");
+  // }
 
   // adjust neighbor list request for KOKKOS
 
@@ -266,15 +269,15 @@ void PairSPHTaitwaterKokkos<DeviceType>::init_style()
 template<class DeviceType>
 double PairSPHTaitwaterKokkos<DeviceType>::init_one(int i, int j)
 {
-  double cutone = PairSPH::init_one(i,j);
+  double cutone = PairSPHTaitwater::init_one(i,j);
 
   k_params.h_view(i,j).cut     = cut[i][j];
   k_params.h_view(i,j).viscosity  = viscosity[i][j];//maybe create copy of k_params to d_params and get valus
   k_params.h_view(j,i)        = k_params.h_view(i,j);
 
-  if (i<MAX_TYPES_STACKPARAMS+1 && j<MAX_TYPES_STACKPARAMS+1) {
-    m_params[i][j] = m_params[j][i] = k_params.h_view(i,j);
-  }
+  // if (i<MAX_TYPES_STACKPARAMS+1 && j<MAX_TYPES_STACKPARAMS+1) {
+  //   m_params[i][j] = m_params[j][i] = k_params.h_view(i,j);
+  // }
 
   k_cutsq.template modify<LMPHostType>();
   k_params.template modify<LMPHostType>();
@@ -286,7 +289,7 @@ double PairSPHTaitwaterKokkos<DeviceType>::init_one(int i, int j)
 template<class DeviceType>
 template<int NEIGHFLAG, int EVFLAG>
 KOKKOS_INLINE_FUNCTION
-void operator(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>,const int& ii, EV_FLOAT& ev) const{
+void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int& ii, EV_FLOAT& ev) const{
   i = ilist[ii];
   const X_FLOAT xtmp = x(i, 0);
   const X_FLOAT ytmp = x(i, 1);
@@ -375,10 +378,20 @@ void operator(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>,const int& ii, EV_FLOAT& 
           drho[j] += imass * delVdotDelR * wfd;
         }
 
-        if (evflag)
-          PairComputeFunctor<Meso, HALF, STACKPARAMS, void>ev_tally(ev, i, j, 0.0, fpair, delx, dely, delz);//maybe not work
+        // if (evflag)
+        //   PairComputeFunctor<Meso, HALF, STACKPARAMS, void>ev_tally(ev, i, j, 0.0, fpair, delx, dely, delz);//maybe not work
       }
     }
+}
+
+
+template<class DeviceType>
+template<int NEIGHFLAG, int EVFLAG>
+KOKKOS_INLINE_FUNCTION
+void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int& ii) const{
+    EV_FLOAT ev;
+    this->template operator()<NEIGHFLAG,EVFLAG>(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>(), ii, ev);
+
 }
 
 

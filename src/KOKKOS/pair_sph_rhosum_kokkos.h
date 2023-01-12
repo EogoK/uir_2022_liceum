@@ -13,19 +13,18 @@
 
 #ifdef PAIR_CLASS
 // clang-format off
-PairStyle(sph/kk,PairSPHRhosumKokkos<LMPDeviceType>);
-PairStyle(sph/kk/device,PairSPHRhosumKokkos<LMPDeviceType>);
-PairStyle(sph/kk/host,PairSPHRhosumKokkos<LMPHostType>);
+PairStyle(sph/rhosum/kk,PairSPHRhosumKokkos<LMPDeviceType>);
+PairStyle(sph/rhosum/kk/device,PairSPHRhosumKokkos<LMPDeviceType>);
+PairStyle(sph/rhosum/kk/host,PairSPHRhosumKokkos<LMPHostType>);
 // clang-format on
 #else
 
 // clang-format off
-#ifndef LMP_PAIR_MORSE_KOKKOS_H
-#define LMP_PAIR_MORSE_KOKKOS_H
+#ifndef LMP_PAIR_SPH_RHOSUM_KOKKOS_H
+#define LMP_PAIR_SPH_RHOSUM_KOKKOS_H
 
-#include "pair_kokkos.h"
 #include "pair_sph_rhosum.h"
-#include "neigh_list_kokkos.h"
+#include "pair_kokkos.h"
 
 template<int NEIGHFLAG, int EVFLAG>
 struct TagPairSPHRhosumComputeShortNeigh{};
@@ -33,15 +32,11 @@ struct TagPairSPHRhosumComputeShortNeigh{};
 template<int NEIGHFLAG, int EVFLAG>
 struct TagPairSPHRhosumComputeShortNeigh1{};
 
-template<int NEIGHFLAG, int EVFLAG>
-struct TagPairSPHRhosumComputeShortNeigh2{};
-
 
 namespace LAMMPS_NS {
-
 template<class DeviceType>
-class PairSPHRhosumKokkos : public PairSPH {
- public:
+class PairSPHRhosumKokkos : public PairSPHRhoSum {
+public:
   enum {EnabledNeighFlags=FULL|HALFTHREAD|HALF};
   enum {COUL_FLAG=0};
   typedef DeviceType device_type;
@@ -58,18 +53,33 @@ class PairSPHRhosumKokkos : public PairSPH {
   KOKKOS_INLINE_FUNCTION
   void operator()(TagPairSPHRhosumComputeShortNeigh<NEIGHFLAG,EVFLAG>, const int&, EV_FLOAT&) const;
   
+
   template<int NEIGHFLAG, int EVFLAG>
   KOKKOS_INLINE_FUNCTION
   void operator()(TagPairSPHRhosumComputeShortNeigh1<NEIGHFLAG,EVFLAG>, const int&, EV_FLOAT&) const;
 
+
   template<int NEIGHFLAG, int EVFLAG>
   KOKKOS_INLINE_FUNCTION
-  void operator()(TagPairSPHRhosumComputeShortNeigh2<NEIGHFLAG,EVFLAG>, const int&, EV_FLOAT&) const;
-    
+  void operator()(TagPairSPHRhosumComputeShortNeigh<NEIGHFLAG,EVFLAG>, const int&) const;
+  
+
+  template<int NEIGHFLAG, int EVFLAG>
+  KOKKOS_INLINE_FUNCTION
+  void operator()(TagPairSPHRhosumComputeShortNeigh1<NEIGHFLAG,EVFLAG>, const int&) const;
+
+
+  struct params_sph{
+    KOKKOS_INLINE_FUNCTION
+    params_sph() {cut=0,cutsq=0,rho0=0;soundspeed=0;B=0;viscosity=0;}
+    KOKKOS_INLINE_FUNCTION
+    params_sph(int /*i*/) {cut=0,cutsq=0,rho0=0;soundspeed=0;B=0;viscosity=0;}
+    F_FLOAT cut,cutsq,rho0,soundspeed,B,viscosity;
+  };
 
  protected:
   Kokkos::DualView<params_sph**,Kokkos::LayoutRight,DeviceType> k_params;
-  t_param_1d d_params;
+
   typename Kokkos::DualView<params_sph**,Kokkos::LayoutRight,DeviceType>::t_dev_const_um params;
   params_sph m_params[MAX_TYPES_STACKPARAMS+1][MAX_TYPES_STACKPARAMS+1];
   F_FLOAT m_cutsq[MAX_TYPES_STACKPARAMS+1][MAX_TYPES_STACKPARAMS+1];
@@ -77,6 +87,8 @@ class PairSPHRhosumKokkos : public PairSPH {
   typename ArrayTypes<DeviceType>::t_x_array c_x;
   typename ArrayTypes<DeviceType>::t_f_array f;
   typename ArrayTypes<DeviceType>::t_int_1d_randomread type;
+  typename ArrayTypes<DeviceType>::t_float_1d mass;
+  typename ArrayTypes<DeviceType>::t_efloat_1d rho;
 
 
   typename ArrayTypes<DeviceType>::t_neighbors_2d d_neighbors;
@@ -100,18 +112,20 @@ class PairSPHRhosumKokkos : public PairSPH {
   int nlocal,nall,eflag,vflag;
 
   int inum;
-  void allocate() override;
-  friend struct PairComputeFunctor<PairSPHRhosumKokkos,FULL,true>;
-  friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALF,true>;
-  friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALFTHREAD,true>;
-  friend struct PairComputeFunctor<PairSPHRhosumKokkos,FULL,false>;
-  friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALF,false>;
-  friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALFTHREAD,false>;
-  friend EV_FLOAT pair_compute_neighlist<PairSPHRhosumKokkos,FULL,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute_neighlist<PairSPHRhosumKokkos,HALF,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute_neighlist<PairSPHRhosumKokkos,HALFTHREAD,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute<PairSPHRhosumKokkos,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
+  // friend struct PairComputeFunctor<PairSPHRhosumKokkos,FULL,true>;
+  // friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALF,true>;
+  // friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALFTHREAD,true>;
+  // friend struct PairComputeFunctor<PairSPHRhosumKokkos,FULL,false>;
+  // friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALF,false>;
+  // friend struct PairComputeFunctor<PairSPHRhosumKokkos,HALFTHREAD,false>;
+  // friend EV_FLOAT pair_compute_neighlist<PairSPHRhosumKokkos,FULL,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
+  // friend EV_FLOAT pair_compute_neighlist<PairSPHRhosumKokkos,HALF,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
+  // friend EV_FLOAT pair_compute_neighlist<PairSPHRhosumKokkos,HALFTHREAD,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
+  // friend EV_FLOAT pair_compute<PairSPHRhosumKokkos,void>(PairSPHRhosumKokkos*,NeighListKokkos<DeviceType>*);
   friend void pair_virial_fdotr_compute<PairSPHRhosumKokkos>(PairSPHRhosumKokkos*);
+
+  
+  void allocate();
 };
 
 }

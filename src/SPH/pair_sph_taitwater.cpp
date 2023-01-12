@@ -57,7 +57,7 @@ void PairSPHTaitwater::compute(int eflag, int vflag) {
 
   int *ilist, *jlist, *numneigh, **firstneigh;
   double vxtmp, vytmp, vztmp, imass, jmass, fi, fj, fvisc, h, ih, ihsq;
-  double rsq, tmp, wfd, delVdotDelR, mu, deltaE;
+  double rsq,  tmp, wfd, delVdotDelR, mu, deltaE;
 
   ev_init(eflag, vflag);
 
