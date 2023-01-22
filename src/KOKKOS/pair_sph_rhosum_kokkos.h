@@ -48,6 +48,7 @@ public:
   void settings(int, char **) override;
   void init_style() override;
   double init_one(int, int) override;
+  void coeff(int, char **) override;
  
   template<int NEIGHFLAG, int EVFLAG>
   KOKKOS_INLINE_FUNCTION

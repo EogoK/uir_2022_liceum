@@ -76,6 +76,31 @@ PairSPHRhosumKokkos<DeviceType>::~PairSPHRhosumKokkos()
 
 /* ---------------------------------------------------------------------- */
 
+
+template<class DeviceType>
+void PairSPHRhosumKokkos<DeviceType>::coeff(int narg, char** arg) {
+     if (narg != 3)
+    error->all(FLERR,"Incorrect number of args for sph/rhosum coefficients");
+
+
+  int ilo, ihi, jlo, jhi;
+  utils::bounds(FLERR,arg[0], 1, atom->ntypes, ilo, ihi, error);
+  utils::bounds(FLERR,arg[1], 1, atom->ntypes, jlo, jhi, error);
+
+  double cut_one = utils::numeric(FLERR,arg[2],false,lmp);
+
+  int count = 0;
+  for (int i = ilo; i <= ihi; i++) {
+    for (int j = MAX(jlo,i); j <= jhi; j++) {
+      //printf("setting cut[%d][%d] = %f\n", i, j, cut_one);
+       k_params.h_view(i,j).cut = cut_one;
+    }
+  }
+
+  if (count == 0)
+    error->all(FLERR,"Incorrect args for pair coefficients");
+}
+
 template<class DeviceType>
 void PairSPHRhosumKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 {

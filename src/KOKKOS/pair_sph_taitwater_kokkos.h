@@ -85,7 +85,11 @@ class PairSPHTaitwaterKokkos: public PairSPHTaitwater{
   typename ArrayTypes<DeviceType>::t_float_1d mass;
   typename ArrayTypes<DeviceType>::t_float_1d desph;
   typename ArrayTypes<DeviceType>::t_float_1d drho;
-  typename ArrayTypes<DeviceType>::t_float_1d mass;
+
+  typename ArrayTypes<DeviceType>::t_float_1d rho0;
+  typename ArrayTypes<DeviceType>::t_float_1d soundspeed;
+  typename ArrayTypes<DeviceType>::t_float_1d B;
+  
   typename ArrayTypes<DeviceType>::t_efloat_1d rho;
   typename ArrayTypes<DeviceType>::t_float_2d v;
 

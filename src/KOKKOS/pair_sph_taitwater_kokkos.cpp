@@ -112,7 +112,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
   desph = atomKK->k_desph.view<DeviceType>();
   drho = atomKK->k_drho.view<DeviceType>();
   rho = atomKK->k_rho.view<DeviceType>();
-  v = atomKK->k_vest.view<DevoceType>();
+  v = atomKK->k_vest.view<DeviceType>();
   //
   tag = atomKK->k_tag.view<DeviceType>();
   nlocal = atom->nlocal;
@@ -123,8 +123,8 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
   special_lj[2] = force->special_lj[2];
   special_lj[3] = force->special_lj[3];
 
-  inum = list->inum;
-  const int ignum = inum + list->gnum;
+  const int inum = list->inum;
+  //const int ignum = inum + list->gnum;
   NeighListKokkos<DeviceType>* k_list = static_cast<NeighListKokkos<DeviceType>*>(list);
   d_ilist = k_list->d_ilist; //non-declared
   d_numneigh = k_list->d_numneigh;
@@ -285,12 +285,49 @@ double PairSPHTaitwaterKokkos<DeviceType>::init_one(int i, int j)
   return cutone;
 }
 
+template<class DeviceType>
+void PairSPHTaitwaterKokkos<DeviceType>::coeff(int narg, char **arg){
+  if (narg != 6)
+    error->all(FLERR,
+        "Incorrect args for pair_style sph/taitwater coefficients");
+
+  int ilo, ihi, jlo, jhi;
+  utils::bounds(FLERR,arg[0], 1, atom->ntypes, ilo, ihi, error);
+  utils::bounds(FLERR,arg[1], 1, atom->ntypes, jlo, jhi, error);
+
+  double rho0_one = utils::numeric(FLERR,arg[2],false,lmp);
+  double soundspeed_one = utils::numeric(FLERR,arg[3],false,lmp);
+  double viscosity_one = utils::numeric(FLERR,arg[4],false,lmp);
+  double cut_one = utils::numeric(FLERR,arg[5],false,lmp);
+  double B_one = soundspeed_one * soundspeed_one * rho0_one / 7.0;
+
+  int count = 0;
+  for (int i = ilo; i <= ihi; i++) {
+    k_params.h_view(i, 0).rho0 = rho0_one;
+    k_params.h_view(i, 0).soundspeed  = soundspeed_one;
+    k_params.h_view(i, 0).B = B_one;
+    for (int j = MAX(jlo,i); j <= jhi; j++) {
+      k_params.h_view(i, j).viscosity = viscosity_one;
+      //printf("setting cut[%d][%d] = %f\n", i, j, cut_one);
+      k_params.h_view(i, j).cut = cut_one;
+      //cut[j][i] = cut[i][j];
+      //viscosity[j][i] = viscosity[i][j];
+      //setflag[j][i] = 1;
+      count++;
+    }
+  }
+
+  if (count == 0)
+    error->all(FLERR,"Incorrect args for pair coefficients");
+
+
+} 
 
 template<class DeviceType>
 template<int NEIGHFLAG, int EVFLAG>
 KOKKOS_INLINE_FUNCTION
 void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int& ii, EV_FLOAT& ev) const{
-  i = ilist[ii];
+  const int i = d_ilist[ii];
   const X_FLOAT xtmp = x(i, 0);
   const X_FLOAT ytmp = x(i, 1);
   const X_FLOAT ztmp = x(i, 2);
@@ -298,33 +335,32 @@ void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGH
   const X_FLOAT vytmp = v(i, 1);
   const X_FLOAT vztmp = v(i, 2);
   const int itype = type[i];
-  jlist = d_neighbors[i]; //pleas find!
-  jnum = d_numneigh[i];
+  const int jnum = d_numneigh[i];
 
-  imass = mass[itype];
+  const X_FLOAT imass = mass[itype];
 
-  tmp = rho[i] / rho0[itype];
-  fi = tmp * tmp * tmp;
-  fi = B[itype] * (fi * fi * tmp - 1.0) / (rho[i] * rho[i]);
+  const X_FLOAT tmp = rho[i] / k_params.h_view(itype, 0).rho0;
+  X_FLOAT fi = tmp * tmp * tmp;
+  fi = k_params.h_view(itype, 0).B * (fi * fi * tmp - 1.0) / (rho[i] * rho[i]);
 
-    for (jj = 0; jj < jnum; jj++) {
-      j = jlist[jj];
+    for (int jj = 0; jj < jnum; jj++) {
+      int j = d_neighbors(i, jj);
       j &= NEIGHMASK;
 
       const F_FLOAT delx = xtmp - x(j, 0);
       const F_FLOAT dely = ytmp - x(j, 1);
       const F_FLOAT delz = ztmp - x(j, 2);
-      rsq = delx * delx + dely * dely + delz * delz;
-      jtype = type[j];
-      jmass = mass[jtype];
+      const F_FLOAT rsq = delx * delx + dely * dely + delz * delz;
+      const int jtype = type[j];
+      const X_FLOAT jmass = mass[jtype];
 
-      if (rsq < d_cutsq(itype, jtype)) {
+      if (rsq < k_params.h_view(itype, jtype).cutsq) {
 
-        F_FLOAT h = cut(itype, jtype);
+        F_FLOAT h = k_params.h_view(itype, jtype).cut;
         F_FLOAT ih = 1.0 / h;
         F_FLOAT ihsq = ih * ih;
 
-        F_FLOAT wfd = h - sqr t(rsq);
+        F_FLOAT wfd = h - sqrt(rsq);
         if (domain->dimension == 3) {
           // Lucy Kernel, 3d
           // Note that wfd, the derivative of the weight function with respect to r,
@@ -332,26 +368,27 @@ void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGH
           // The missing factor of r is recovered by
           // (1) using delV . delX instead of delV . (delX/r) and
           // (2) using f[i][0] += delx * fpair instead of f[i][0] += (delx/r) * fpair
-          wfd = -25.066903536973515383e0 * wfd * wfd * ihsq * ihsq * ihsq * ih;
+          wfd = -25.066903536973515383e0 * wfd * wfd * ihsq * ihsq * ihsq * ih; 
         } else {
           // Lucy Kernel, 2d
           wfd = -19.098593171027440292e0 * wfd * wfd * ihsq * ihsq * ihsq;
         }
 
         // compute pressure  of atom j with Tait EOS
-        F_FLOAT tmp = rho[j] / rho0[jtype];
+        F_FLOAT tmp = rho[j] / k_params.h_view(jtype, 0).rho0;
         F_FLOAT fj = tmp * tmp * tmp;
-        F_FLOAT fj = B[jtype] * (fj * fj * tmp - 1.0) / (rho[j] * rho[j]);
+        fj = k_params.h_view(jtype, 0).B * (fj * fj * tmp - 1.0) / (rho[j] * rho[j]);
 
         // dot product of velocity delta and distance vector
         F_FLOAT delVdotDelR = delx * (vxtmp - v(j, 0)) + dely * (vytmp - v(j, 1))
             + delz * (vztmp - v(j, 2));
 
         // artificial viscosity (Monaghan 1992)
+        F_FLOAT fvisc = 0.;
         if (delVdotDelR < 0.) {
           F_FLOAT mu = h * delVdotDelR / (rsq + 0.01 * h * h);
-          F_FLOAT fvisc = -viscosity(itype, jtype) * (soundspeed[itype]
-              + soundspeed[jtype]) * mu / (rho[i] + rho[j]);
+          fvisc = -k_params.h_view(itype, jtype).viscosity * (k_params.h_view(itype, 0).soundspeed
+              + k_params.h_view(jtype, 0).soundspeed) * mu / (rho[i] + rho[j]);
         } else {
           fvisc = 0.;
         }
@@ -393,6 +430,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGH
     this->template operator()<NEIGHFLAG,EVFLAG>(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>(), ii, ev);
 
 }
+
 
 
 namespace LAMMPS_NS {
