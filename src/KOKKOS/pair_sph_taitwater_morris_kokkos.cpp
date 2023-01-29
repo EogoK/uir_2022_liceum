@@ -16,7 +16,7 @@
    Contributing authors: Stefan Paquay (Eindhoven University of Technology)
 ------------------------------------------------------------------------- */
 
-#include "pair_sph_taitwater_kokkos.h"
+#include "pair_sph_taitwater_kokkos_morris.h"
 
 #include "atom_kokkos.h"
 #include "atom_masks.h"
@@ -46,7 +46,7 @@ using namespace MathConst;
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-PairSPHTaitwaterKokkos<DeviceType>::PairSPHTaitwaterKokkos(LAMMPS *lmp) : PairSPHTaitwater(lmp)
+PairSPHTaitwaterMorrisKokkos<DeviceType>::PairSPHTaitwaterMorrisKokkos(LAMMPS *lmp) : PairSPHTaitwater(lmp)
 {
   respa_enable = 0;
 
@@ -60,7 +60,7 @@ PairSPHTaitwaterKokkos<DeviceType>::PairSPHTaitwaterKokkos(LAMMPS *lmp) : PairSP
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-PairSPHTaitwaterKokkos<DeviceType>::~PairSPHTaitwaterKokkos()
+PairSPHTaitwaterMorrisKokkos<DeviceType>::~PairSPHTaitwaterMorrisKokkos()
 {
   if (copymode) return;
 
@@ -74,7 +74,7 @@ PairSPHTaitwaterKokkos<DeviceType>::~PairSPHTaitwaterKokkos()
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
+void PairSPHTaitwaterMorrisKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 {
   eflag = eflag_in;
   vflag = vflag_in;
@@ -160,7 +160,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 // template<class DeviceType>
 // template<bool STACKPARAMS, class Specialisation>
 // KOKKOS_INLINE_FUNCTION
-// F_FLOAT PairSPHTaitwaterKokkos<DeviceType>::
+// F_FLOAT PairSPHTaitwaterMorrisKokkos<DeviceType>::
 // compute_fpair(const F_FLOAT& rsq, const int& i, const int&j, const int& itype, const int& jtype) const {
 //   (void) i;
 //   (void) j;
@@ -182,7 +182,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 // template<class DeviceType>
 // template<bool STACKPARAMS, class Specialisation>
 // KOKKOS_INLINE_FUNCTION
-// F_FLOAT PairSPHTaitwaterKokkos<DeviceType>::
+// F_FLOAT PairSPHTaitwaterMorrisKokkos<DeviceType>::
 // compute_evdwl(const F_FLOAT& rsq, const int& i, const int&j, const int& itype, const int& jtype) const {
 //   (void) i;
 //   (void) j;
@@ -205,7 +205,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHTaitwaterKokkos<DeviceType>::allocate()
+void PairSPHTaitwaterMorrisKokkos<DeviceType>::allocate()
 {
   PairSPHTaitwater::allocate();
 
@@ -222,7 +222,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::allocate()
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHTaitwaterKokkos<DeviceType>::settings(int narg, char **arg)
+void PairSPHTaitwaterMorrisKokkos<DeviceType>::settings(int narg, char **arg)
 {
   if (narg > 2) error->all(FLERR,"Illegal pair_style command");
 
@@ -234,7 +234,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::settings(int narg, char **arg)
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHTaitwaterKokkos<DeviceType>::init_style()
+void PairSPHTaitwaterMorrisKokkos<DeviceType>::init_style()
 {
   PairSPHTaitwater::init_style();
 
@@ -267,7 +267,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::init_style()
 ------------------------------------------------------------------------- */
 // Rewrite this.
 template<class DeviceType>
-double PairSPHTaitwaterKokkos<DeviceType>::init_one(int i, int j)
+double PairSPHTaitwaterMorrisKokkos<DeviceType>::init_one(int i, int j)
 {
   double cutone = PairSPHTaitwater::init_one(i,j);
 
@@ -286,7 +286,7 @@ double PairSPHTaitwaterKokkos<DeviceType>::init_one(int i, int j)
 }
 
 template<class DeviceType>
-void PairSPHTaitwaterKokkos<DeviceType>::coeff(int narg, char **arg){
+void PairSPHTaitwaterMorrisKokkos<DeviceType>::coeff(int narg, char **arg){
   if (narg != 6)
     error->all(FLERR,
         "Incorrect args for pair_style sph/taitwater coefficients");
@@ -320,14 +320,13 @@ void PairSPHTaitwaterKokkos<DeviceType>::coeff(int narg, char **arg){
   if (count == 0)
     error->all(FLERR,"Incorrect args for pair coefficients");
 
-  k_params.template modify<LMPHostType>();
-   k_params.template sync<LMPHostType>();
+
 } 
 
 template<class DeviceType>
 template<int NEIGHFLAG, int EVFLAG>
 KOKKOS_INLINE_FUNCTION
-void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int& ii, EV_FLOAT& ev) const{
+void PairSPHTaitwaterMorrisKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int& ii, EV_FLOAT& ev) const{
   const int i = d_ilist[ii];
   const X_FLOAT xtmp = x(i, 0);
   const X_FLOAT ytmp = x(i, 1);
@@ -379,29 +378,28 @@ void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGH
         F_FLOAT tmp = rho[j] / k_params.h_view(jtype, 0).rho0;
         F_FLOAT fj = tmp * tmp * tmp;
         fj = k_params.h_view(jtype, 0).B * (fj * fj * tmp - 1.0) / (rho[j] * rho[j]);
+        
+        F_FLOAT velx = vxtmp - v(j, 0);
+        F_FLOAT vely = vytmp - v(j, 1);
+        F_FLOAT velz = vztmp - v(j, 2);
 
         // dot product of velocity delta and distance vector
-        F_FLOAT delVdotDelR = delx * (vxtmp - v(j, 0)) + dely * (vytmp - v(j, 1))
-            + delz * (vztmp - v(j, 2));
+        F_FLOAT delVdotDelR = delx * velx + dely * vely + delz * velz;;
 
         // artificial viscosity (Monaghan 1992)
-        F_FLOAT fvisc = 0.;
-        if (delVdotDelR < 0.) {
-          F_FLOAT mu = h * delVdotDelR / (rsq + 0.01 * h * h);
-          fvisc = -k_params.h_view(itype, jtype).viscosity * (k_params.h_view(itype, 0).soundspeed
-              + k_params.h_view(jtype, 0).soundspeed) * mu / (rho[i] + rho[j]);
-        } else {
-          fvisc = 0.;
-        }
+        F_FLOAT fvisc = 2 * viscosity[itype][jtype] / (rho[i] * rho[j]);
+
+        fvisc *= imass * jmass * wfd;
 
         // total pair force & thermal energy increment
-        F_FLOAT fpair = -imass * jmass * (fi + fj + fvisc) * wfd;
-        F_FLOAT deltaE = -0.5 * fpair * delVdotDelR;
+        F_FLOAT fpair = -imass * jmass * (fi + fj) * wfd;
+        F_FLOAT deltaE = -0.5 *(fpair * delVdotDelR + fvisc * (velx*velx + vely*vely + velz*velz));
 
-        f(i, 0) += delx * fpair;
-        f(i, 1) += dely * fpair;
-        f(i, 2) += delz * fpair;
+       // printf("testvar= %f, %f \n", delx, dely);
 
+        f(i, 0) += delx * fpair + velx * fvisc;
+        f(i, 1) += dely * fpair + vely * fvisc;
+        f(i, 2) += delz * fpair + velz * fvisc;
         // and change in density
         drho[i] += jmass * delVdotDelR * wfd;
 
@@ -409,9 +407,9 @@ void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGH
         desph[i] += deltaE;
 
         if (newton_pair || j < nlocal) {
-          f(i, 0) -= delx * fpair;
-          f(i, 1) -= dely * fpair;
-          f(i, 2) -= delz * fpair;
+          f(i, 0) -= delx * fpair + velx * fvisc;
+          f(i, 1) -= dely * fpair + vely * fvisc;
+          f(i, 2) -= delz * fpair + velz * fvisc;
           desph[j] += deltaE;
           drho[j] += imass * delVdotDelR * wfd;
         }
@@ -426,7 +424,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGH
 template<class DeviceType>
 template<int NEIGHFLAG, int EVFLAG>
 KOKKOS_INLINE_FUNCTION
-void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int& ii) const{
+void PairSPHTaitwaterMorrisKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int& ii) const{
     EV_FLOAT ev;
     this->template operator()<NEIGHFLAG,EVFLAG>(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>(), ii, ev);
 
@@ -435,9 +433,9 @@ void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGH
 
 
 namespace LAMMPS_NS {
-template class PairSPHTaitwaterKokkos<LMPDeviceType>;
+template class PairSPHTaitwaterMorrisKokkos<LMPDeviceType>;
 #ifdef LMP_KOKKOS_GPU
-template class PairSPHTaitwaterKokkos<LMPHostType>;
+template class PairSPHTaitwaterMorrisKokkos<LMPHostType>;
 #endif
 }
 

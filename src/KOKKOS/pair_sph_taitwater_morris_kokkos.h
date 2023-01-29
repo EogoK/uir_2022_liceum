@@ -13,31 +13,31 @@
 
 #ifdef PAIR_CLASS
 // clang-format off
-PairStyle(sph/taitwater/kk,PairSPHTaitwaterKokkos<LMPDeviceType>);
-PairStyle(sph/taitwater/kk/device,PairSPHTaitwaterKokkos<LMPDeviceType>);
-PairStyle(sph/taitwater/kk/host,PairSPHTaitwaterKokkos<LMPHostType>);
+PairStyle(sph/taitwater/morris/kk,PairSPHTaitwaterMorrisKokkos<LMPDeviceType>);
+PairStyle(sph/taitwater/morris/kk/device,PairSPHTaitwaterMorrisKokkos<LMPDeviceType>);
+PairStyle(sph/taitwater/morris/kk/host,PairSPHTaitwaterMorrisKokkos<LMPHostType>);
 // clang-format on
 #else
 
 // clang-format off
-#ifndef LMP_PAIR_SPH_TAITWATER_KOKKOS_H
-#define LMP_PAIR_SPH_TAITWATER_KOKKOS_H
+#ifndef LMP_PAIR_SPH_TAITWATER_MORRIS_KOKKOS_H
+#define LMP_PAIR_SPH_TAITWATER_MORRIS_KOKKOS_H
 
-#include "pair_sph_taitwater.h"
+#include "pair_sph_taitwater_morris.h"
 #include "pair_kokkos.h"
 
 template<int NEIGHFLAG, int EVFLAG>
-struct TagPairKokkosTaitwater{};
+struct TagPairKokkosTaitwaterMorris{};
 
 namespace LAMMPS_NS {
 template<class DeviceType>
-class PairSPHTaitwaterKokkos: public PairSPHTaitwater{
+class PairSPHTaitwaterMorrisKokkos: public PairSPHTaitwaterMorris{
  public:
   enum {EnabledNeighFlags=FULL|HALFTHREAD|HALF};
   enum {COUL_FLAG=0};
   typedef DeviceType device_type;
-  PairSPHTaitwaterKokkos(class LAMMPS *);
-  ~PairSPHTaitwaterKokkos() override;
+  PairSPHTaitwaterMorrisKokkos(class LAMMPS *);
+  ~PairSPHTaitwaterMorrisKokkos() override;
 
   void compute(int, int) override;
 
@@ -48,12 +48,12 @@ class PairSPHTaitwaterKokkos: public PairSPHTaitwater{
 
   template<int NEIGHFLAG, int EVFLAG>
   KOKKOS_INLINE_FUNCTION
-  void operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int&, EV_FLOAT&) const;
+  void operator()(TagPairKokkosTaitwaterMorris<NEIGHFLAG,EVFLAG>, const int&, EV_FLOAT&) const;
 
 
   template<int NEIGHFLAG, int EVFLAG>
   KOKKOS_INLINE_FUNCTION
-  void operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int&) const;
+  void operator()(TagPairKokkosTaitwaterMorris<NEIGHFLAG,EVFLAG>, const int&) const;
 
 
   struct params_sph{

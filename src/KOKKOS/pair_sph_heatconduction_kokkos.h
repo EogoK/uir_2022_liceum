@@ -13,31 +13,31 @@
 
 #ifdef PAIR_CLASS
 // clang-format off
-PairStyle(sph/taitwater/kk,PairSPHTaitwaterKokkos<LMPDeviceType>);
-PairStyle(sph/taitwater/kk/device,PairSPHTaitwaterKokkos<LMPDeviceType>);
-PairStyle(sph/taitwater/kk/host,PairSPHTaitwaterKokkos<LMPHostType>);
+PairStyle(sph/heatconduction/kk,PairSPHHeatConductionKokkos<LMPDeviceType>);
+PairStyle(sph/heatconduction/kk/device,PairSPHHeatConductionKokkos<LMPDeviceType>);
+PairStyle(sph/heatconduction/kk/host,PairSPHHeatConductionKokkos<LMPHostType>);
 // clang-format on
 #else
 
 // clang-format off
-#ifndef LMP_PAIR_SPH_TAITWATER_KOKKOS_H
-#define LMP_PAIR_SPH_TAITWATER_KOKKOS_H
+#ifndef LMP_PAIR_SPH_HEATCONDUCTION_KOKKOS_H
+#define LMP_PAIR_SPH_HEATCONDUCTION_KOKKOS_H
 
-#include "pair_sph_taitwater.h"
+#include "pair_sph_headconduction.h"
 #include "pair_kokkos.h"
 
 template<int NEIGHFLAG, int EVFLAG>
-struct TagPairKokkosTaitwater{};
+struct TagPairKokkosHeatConduction{};
 
 namespace LAMMPS_NS {
 template<class DeviceType>
-class PairSPHTaitwaterKokkos: public PairSPHTaitwater{
+class PairSPHHeatConductionKokkos: public PairSPHHeatConduction{
  public:
   enum {EnabledNeighFlags=FULL|HALFTHREAD|HALF};
   enum {COUL_FLAG=0};
   typedef DeviceType device_type;
-  PairSPHTaitwaterKokkos(class LAMMPS *);
-  ~PairSPHTaitwaterKokkos() override;
+  PairSPHHeatConductionKokkos(class LAMMPS *);
+  ~PairSPHHeatConductionKokkos() override;
 
   void compute(int, int) override;
 
@@ -48,20 +48,20 @@ class PairSPHTaitwaterKokkos: public PairSPHTaitwater{
 
   template<int NEIGHFLAG, int EVFLAG>
   KOKKOS_INLINE_FUNCTION
-  void operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int&, EV_FLOAT&) const;
+  void operator()(TagPairKokkosHeatConduction<NEIGHFLAG,EVFLAG>, const int&, EV_FLOAT&) const;
 
 
   template<int NEIGHFLAG, int EVFLAG>
   KOKKOS_INLINE_FUNCTION
-  void operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int&) const;
+  void operator()(TagPairKokkosHeatConduction<NEIGHFLAG,EVFLAG>, const int&) const;
 
 
   struct params_sph{
     KOKKOS_INLINE_FUNCTION
-    params_sph() {cut=0,cutsq=0,rho0=0;soundspeed=0;B=0;viscosity=0;}
+    params_sph() {cut=0,cutsq=0,alpha=0;}
     KOKKOS_INLINE_FUNCTION
-    params_sph(int /*i*/) {cut=0,cutsq=0,rho0=0;soundspeed=0;B=0;viscosity=0;}
-    F_FLOAT cut,cutsq,rho0,soundspeed,B,viscosity;
+    params_sph(int /*i*/) {cut=0,cutsq=0,alpha=0;}
+    F_FLOAT cut,alpha,cutsq;
   };
 
 
@@ -84,10 +84,11 @@ class PairSPHTaitwaterKokkos: public PairSPHTaitwater{
 
   typename ArrayTypes<DeviceType>::t_float_1d mass;
   typename ArrayTypes<DeviceType>::t_float_1d desph;
-  typename ArrayTypes<DeviceType>::t_float_1d drho;
+  typename ArrayTypes<DeviceType>::t_float_1d esph;
+  //typename ArrayTypes<DeviceType>::t_float_1d drho;
   
   typename ArrayTypes<DeviceType>::t_efloat_1d rho;
-  typename ArrayTypes<DeviceType>::t_float_2d v;
+  //typename ArrayTypes<DeviceType>::t_float_2d v;
 
 
   double special_lj[4];
@@ -102,17 +103,17 @@ class PairSPHTaitwaterKokkos: public PairSPHTaitwater{
   int nlocal,nall,eflag,vflag;
 
   void allocate();
-  // friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,FULL,true>;
-  // friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,HALF,true>;
-  // friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,HALFTHREAD,true>;
-  // friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,FULL,false>;
-  // friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,HALF,false>;
-  // friend struct PairComputeFunctor<PairSPHTaitwaterKokkos,HALFTHREAD,false>;
-  // friend EV_FLOAT pair_compute_neighlist<PairSPHTaitwaterKokkos,FULL,void>(PairSPHTaitwaterKokkos*,NeighListKokkos<DeviceType>*);
-  // friend EV_FLOAT pair_compute_neighlist<PairSPHTaitwaterKokkos,HALF,void>(PairSPHTaitwaterKokkos*,NeighListKokkos<DeviceType>*);
-  // friend EV_FLOAT pair_compute_neighlist<PairSPHTaitwaterKokkos,HALFTHREAD,void>(PairSPHTaitwaterKokkos*,NeighListKokkos<DeviceType>*);
-  // friend EV_FLOAT pair_compute<PairSPHTaitwaterKokkos,void>(PairSPHTaitwaterKokkos*,NeighListKokkos<DeviceType>*);
-  // friend void pair_virial_fdotr_compute<PairSPHTaitwaterKokkos>(PairSPHTaitwaterKokkos*);
+  // friend struct PairComputeFunctor<PairSPHHeatConductionKokkos,FULL,true>;
+  // friend struct PairComputeFunctor<PairSPHHeatConductionKokkos,HALF,true>;
+  // friend struct PairComputeFunctor<PairSPHHeatConductionKokkos,HALFTHREAD,true>;
+  // friend struct PairComputeFunctor<PairSPHHeatConductionKokkos,FULL,false>;
+  // friend struct PairComputeFunctor<PairSPHHeatConductionKokkos,HALF,false>;
+  // friend struct PairComputeFunctor<PairSPHHeatConductionKokkos,HALFTHREAD,false>;
+  // friend EV_FLOAT pair_compute_neighlist<PairSPHHeatConductionKokkos,FULL,void>(PairSPHHeatConductionKokkos*,NeighListKokkos<DeviceType>*);
+  // friend EV_FLOAT pair_compute_neighlist<PairSPHHeatConductionKokkos,HALF,void>(PairSPHHeatConductionKokkos*,NeighListKokkos<DeviceType>*);
+  // friend EV_FLOAT pair_compute_neighlist<PairSPHHeatConductionKokkos,HALFTHREAD,void>(PairSPHHeatConductionKokkos*,NeighListKokkos<DeviceType>*);
+  // friend EV_FLOAT pair_compute<PairSPHHeatConductionKokkos,void>(PairSPHHeatConductionKokkos*,NeighListKokkos<DeviceType>*);
+  // friend void pair_virial_fdotr_compute<PairSPHHeatConductionKokkos>(PairSPHHeatConductionKokkos*);
 };
 
 }

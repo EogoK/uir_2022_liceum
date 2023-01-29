@@ -16,7 +16,7 @@
    Contributing authors: Stefan Paquay (Eindhoven University of Technology)
 ------------------------------------------------------------------------- */
 
-#include "pair_sph_taitwater_kokkos.h"
+#include "pair_sph_idealgas_kokkos.h"
 
 #include "atom_kokkos.h"
 #include "atom_masks.h"
@@ -46,7 +46,7 @@ using namespace MathConst;
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-PairSPHTaitwaterKokkos<DeviceType>::PairSPHTaitwaterKokkos(LAMMPS *lmp) : PairSPHTaitwater(lmp)
+PairSPHIdealGasKokkos<DeviceType>::PairSPHIdealGasKokkos(LAMMPS *lmp) : PairSPHIdealGas(lmp)
 {
   respa_enable = 0;
 
@@ -60,7 +60,7 @@ PairSPHTaitwaterKokkos<DeviceType>::PairSPHTaitwaterKokkos(LAMMPS *lmp) : PairSP
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-PairSPHTaitwaterKokkos<DeviceType>::~PairSPHTaitwaterKokkos()
+PairSPHIdealGasKokkos<DeviceType>::~PairSPHIdealGasKokkos()
 {
   if (copymode) return;
 
@@ -74,7 +74,7 @@ PairSPHTaitwaterKokkos<DeviceType>::~PairSPHTaitwaterKokkos()
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
+void PairSPHIdealGasKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 {
   eflag = eflag_in;
   vflag = vflag_in;
@@ -132,7 +132,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
   EV_FLOAT ev;
   //d_params = k_params.template view<DeviceType>();
 
-  Kokkos::parallel_for(Kokkos::RangePolicy<DeviceType, TagPairKokkosTaitwater<HALF,1> >(0,inum),*this);
+  Kokkos::parallel_for(Kokkos::RangePolicy<DeviceType, TagPairKokkosIdealGas<HALF,1> >(0,inum),*this);
 
   if (eflag_global) eng_vdwl += ev.evdwl;
   if (vflag_global) {
@@ -160,7 +160,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 // template<class DeviceType>
 // template<bool STACKPARAMS, class Specialisation>
 // KOKKOS_INLINE_FUNCTION
-// F_FLOAT PairSPHTaitwaterKokkos<DeviceType>::
+// F_FLOAT PairSPHIdealGasKokkos<DeviceType>::
 // compute_fpair(const F_FLOAT& rsq, const int& i, const int&j, const int& itype, const int& jtype) const {
 //   (void) i;
 //   (void) j;
@@ -182,7 +182,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 // template<class DeviceType>
 // template<bool STACKPARAMS, class Specialisation>
 // KOKKOS_INLINE_FUNCTION
-// F_FLOAT PairSPHTaitwaterKokkos<DeviceType>::
+// F_FLOAT PairSPHIdealGasKokkos<DeviceType>::
 // compute_evdwl(const F_FLOAT& rsq, const int& i, const int&j, const int& itype, const int& jtype) const {
 //   (void) i;
 //   (void) j;
@@ -205,15 +205,15 @@ void PairSPHTaitwaterKokkos<DeviceType>::compute(int eflag_in, int vflag_in)
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHTaitwaterKokkos<DeviceType>::allocate()
+void PairSPHIdealGasKokkos<DeviceType>::allocate()
 {
-  PairSPHTaitwater::allocate();
+  PairSPHIdealGas::allocate();
 
   int n = atom->ntypes;
   memory->destroy(cutsq);
   memoryKK->create_kokkos(k_cutsq,cutsq,n+1,n+1,"pair:cutsq");
   d_cutsq = k_cutsq.template view<DeviceType>();
-  k_params = Kokkos::DualView<params_sph**,Kokkos::LayoutRight,DeviceType>("PairSPHTaitwater::params",n+1,n+1);
+  k_params = Kokkos::DualView<params_sph**,Kokkos::LayoutRight,DeviceType>("PairSPHIdealGas::params",n+1,n+1);
   params = k_params.template view<DeviceType>();
 }
 
@@ -222,11 +222,11 @@ void PairSPHTaitwaterKokkos<DeviceType>::allocate()
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHTaitwaterKokkos<DeviceType>::settings(int narg, char **arg)
+void PairSPHIdealGasKokkos<DeviceType>::settings(int narg, char **arg)
 {
   if (narg > 2) error->all(FLERR,"Illegal pair_style command");
 
-  PairSPHTaitwater::settings(1,arg);
+  PairSPHIdealGas::settings(1,arg);
 }
 
 /* ----------------------------------------------------------------------
@@ -234,9 +234,9 @@ void PairSPHTaitwaterKokkos<DeviceType>::settings(int narg, char **arg)
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
-void PairSPHTaitwaterKokkos<DeviceType>::init_style()
+void PairSPHIdealGasKokkos<DeviceType>::init_style()
 {
-  PairSPHTaitwater::init_style();
+  PairSPHIdealGas::init_style();
 
   // error if rRESPA with inner levels
 
@@ -267,12 +267,11 @@ void PairSPHTaitwaterKokkos<DeviceType>::init_style()
 ------------------------------------------------------------------------- */
 // Rewrite this.
 template<class DeviceType>
-double PairSPHTaitwaterKokkos<DeviceType>::init_one(int i, int j)
+double PairSPHIdealGasKokkos<DeviceType>::init_one(int i, int j)
 {
-  double cutone = PairSPHTaitwater::init_one(i,j);
+  double cutone = PairSPHIdealGas::init_one(i,j);
 
   k_params.h_view(i,j).cut     = cut[i][j];
-  k_params.h_view(i,j).viscosity  = viscosity[i][j];//maybe create copy of k_params to d_params and get valus
   k_params.h_view(j,i)        = k_params.h_view(i,j);
 
   // if (i<MAX_TYPES_STACKPARAMS+1 && j<MAX_TYPES_STACKPARAMS+1) {
@@ -286,26 +285,20 @@ double PairSPHTaitwaterKokkos<DeviceType>::init_one(int i, int j)
 }
 
 template<class DeviceType>
-void PairSPHTaitwaterKokkos<DeviceType>::coeff(int narg, char **arg){
+void PairSPHIdealGasKokkos<DeviceType>::coeff(int narg, char **arg){
   if (narg != 6)
     error->all(FLERR,
-        "Incorrect args for pair_style sph/taitwater coefficients");
+        "Incorrect args for pair_style sph/idealgas/kk coefficients");
 
   int ilo, ihi, jlo, jhi;
   utils::bounds(FLERR,arg[0], 1, atom->ntypes, ilo, ihi, error);
   utils::bounds(FLERR,arg[1], 1, atom->ntypes, jlo, jhi, error);
 
-  double rho0_one = utils::numeric(FLERR,arg[2],false,lmp);
-  double soundspeed_one = utils::numeric(FLERR,arg[3],false,lmp);
-  double viscosity_one = utils::numeric(FLERR,arg[4],false,lmp);
-  double cut_one = utils::numeric(FLERR,arg[5],false,lmp);
-  double B_one = soundspeed_one * soundspeed_one * rho0_one / 7.0;
+  double viscosity_one = utils::numeric(FLERR,arg[2],false,lmp);
+  double cut_one = utils::numeric(FLERR,arg[3],false,lmp);
 
   int count = 0;
   for (int i = ilo; i <= ihi; i++) {
-    k_params.h_view(i, 0).rho0 = rho0_one;
-    k_params.h_view(i, 0).soundspeed  = soundspeed_one;
-    k_params.h_view(i, 0).B = B_one;
     for (int j = MAX(jlo,i); j <= jhi; j++) {
       k_params.h_view(i, j).viscosity = viscosity_one;
       //printf("setting cut[%d][%d] = %f\n", i, j, cut_one);
@@ -327,7 +320,7 @@ void PairSPHTaitwaterKokkos<DeviceType>::coeff(int narg, char **arg){
 template<class DeviceType>
 template<int NEIGHFLAG, int EVFLAG>
 KOKKOS_INLINE_FUNCTION
-void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int& ii, EV_FLOAT& ev) const{
+void PairSPHIdealGasKokkos<DeviceType>::operator()(TagPairKokkosIdealGas<NEIGHFLAG,EVFLAG>, const int& ii, EV_FLOAT& ev) const{
   const int i = d_ilist[ii];
   const X_FLOAT xtmp = x(i, 0);
   const X_FLOAT ytmp = x(i, 1);
@@ -341,8 +334,9 @@ void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGH
   const X_FLOAT imass = mass[itype];
 
   const X_FLOAT tmp = rho[i] / k_params.h_view(itype, 0).rho0;
-  X_FLOAT fi = tmp * tmp * tmp;
-  fi = k_params.h_view(itype, 0).B * (fi * fi * tmp - 1.0) / (rho[i] * rho[i]);
+  X_FLOAT fi =  0.4 * esph[i] / imass / rho[i];
+  X_FLOAT ci = sqrt(0.4*esph[i]/imass); // speed of sound with heat capacity ratio gamma=1.4
+
 
     for (int jj = 0; jj < jnum; jj++) {
       int j = d_neighbors(i, jj);
@@ -374,11 +368,8 @@ void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGH
           // Lucy Kernel, 2d
           wfd = -19.098593171027440292e0 * wfd * wfd * ihsq * ihsq * ihsq;
         }
-
-        // compute pressure  of atom j with Tait EOS
-        F_FLOAT tmp = rho[j] / k_params.h_view(jtype, 0).rho0;
-        F_FLOAT fj = tmp * tmp * tmp;
-        fj = k_params.h_view(jtype, 0).B * (fj * fj * tmp - 1.0) / (rho[j] * rho[j]);
+        
+        F_FLOAT fj = 0.4 * esph[j] / jmass / rho[j];
 
         // dot product of velocity delta and distance vector
         F_FLOAT delVdotDelR = delx * (vxtmp - v(j, 0)) + dely * (vytmp - v(j, 1))
@@ -387,9 +378,9 @@ void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGH
         // artificial viscosity (Monaghan 1992)
         F_FLOAT fvisc = 0.;
         if (delVdotDelR < 0.) {
+          X_FLOAT cj = sqrt(0.4*esph[j]/jmass);
           F_FLOAT mu = h * delVdotDelR / (rsq + 0.01 * h * h);
-          fvisc = -k_params.h_view(itype, jtype).viscosity * (k_params.h_view(itype, 0).soundspeed
-              + k_params.h_view(jtype, 0).soundspeed) * mu / (rho[i] + rho[j]);
+          fvisc = -k_params.h_view(itype, jtype).viscosity * (ci + cj) * mu / (rho[i] + rho[j]);
         } else {
           fvisc = 0.;
         }
@@ -426,18 +417,18 @@ void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGH
 template<class DeviceType>
 template<int NEIGHFLAG, int EVFLAG>
 KOKKOS_INLINE_FUNCTION
-void PairSPHTaitwaterKokkos<DeviceType>::operator()(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>, const int& ii) const{
+void PairSPHIdealGasKokkos<DeviceType>::operator()(TagPairKokkosIdealGas<NEIGHFLAG,EVFLAG>, const int& ii) const{
     EV_FLOAT ev;
-    this->template operator()<NEIGHFLAG,EVFLAG>(TagPairKokkosTaitwater<NEIGHFLAG,EVFLAG>(), ii, ev);
+    this->template operator()<NEIGHFLAG,EVFLAG>(TagPairKokkosIdealGas<NEIGHFLAG,EVFLAG>(), ii, ev);
 
 }
 
 
 
 namespace LAMMPS_NS {
-template class PairSPHTaitwaterKokkos<LMPDeviceType>;
+template class PairSPHIdealGasKokkos<LMPDeviceType>;
 #ifdef LMP_KOKKOS_GPU
-template class PairSPHTaitwaterKokkos<LMPHostType>;
+template class PairSPHIdealGasKokkos<LMPHostType>;
 #endif
 }
 
